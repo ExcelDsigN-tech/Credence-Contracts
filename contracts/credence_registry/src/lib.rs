@@ -71,12 +71,12 @@ impl CredenceRegistry {
 
         // Initialize empty registered identities list
         let identities: Vec<Address> = Vec::new(&e);
-        e.storage().instance().set(&DataKey::RegisteredIdentities, &identities);
+        e.storage()
+            .instance()
+            .set(&DataKey::RegisteredIdentities, &identities);
 
-        e.events().publish(
-            (Symbol::new(&e, "registry_initialized"),),
-            admin.clone(),
-        );
+        e.events()
+            .publish((Symbol::new(&e, "registry_initialized"),), admin.clone());
     }
 
     /// Register a new identity-to-bond mapping.
@@ -139,13 +139,13 @@ impl CredenceRegistry {
             .unwrap_or_else(|| Vec::new(&e));
 
         identities.push_back(identity.clone());
-        e.storage().instance().set(&DataKey::RegisteredIdentities, &identities);
+        e.storage()
+            .instance()
+            .set(&DataKey::RegisteredIdentities, &identities);
 
         // Emit event
-        e.events().publish(
-            (Symbol::new(&e, "identity_registered"),),
-            entry.clone(),
-        );
+        e.events()
+            .publish((Symbol::new(&e, "identity_registered"),), entry.clone());
 
         entry
     }
@@ -237,10 +237,8 @@ impl CredenceRegistry {
         entry.active = false;
         e.storage().instance().set(&key, &entry);
 
-        e.events().publish(
-            (Symbol::new(&e, "identity_deactivated"),),
-            entry,
-        );
+        e.events()
+            .publish((Symbol::new(&e, "identity_deactivated"),), entry);
     }
 
     /// Reactivate a previously deactivated registration.
@@ -279,10 +277,8 @@ impl CredenceRegistry {
         entry.active = true;
         e.storage().instance().set(&key, &entry);
 
-        e.events().publish(
-            (Symbol::new(&e, "identity_reactivated"),),
-            entry,
-        );
+        e.events()
+            .publish((Symbol::new(&e, "identity_reactivated"),), entry);
     }
 
     /// Get all registered identities.
@@ -332,10 +328,8 @@ impl CredenceRegistry {
 
         e.storage().instance().set(&DataKey::Admin, &new_admin);
 
-        e.events().publish(
-            (Symbol::new(&e, "admin_transferred"),),
-            new_admin,
-        );
+        e.events()
+            .publish((Symbol::new(&e, "admin_transferred"),), new_admin);
     }
 }
 
