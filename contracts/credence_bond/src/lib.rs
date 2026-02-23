@@ -386,7 +386,9 @@ impl CredenceBond {
             .get::<_, IdentityBond>(&key)
             .unwrap_or_else(|| panic!("no bond"));
 
-        let available = bond.bonded_amount.checked_sub(bond.slashed_amount)
+        let available = bond
+            .bonded_amount
+            .checked_sub(bond.slashed_amount)
             .expect("slashed amount exceeds bonded amount");
         if amount > available {
             panic!("insufficient balance for withdrawal");
@@ -422,7 +424,9 @@ impl CredenceBond {
         }
 
         let old_tier = tiered_bond::get_tier_for_amount(bond.bonded_amount);
-        bond.bonded_amount = bond.bonded_amount.checked_sub(amount)
+        bond.bonded_amount = bond
+            .bonded_amount
+            .checked_sub(amount)
             .expect("withdrawal caused underflow");
         if bond.slashed_amount > bond.bonded_amount {
             panic!("slashed amount exceeds bonded amount");
@@ -437,7 +441,8 @@ impl CredenceBond {
     /// Request withdrawal (rolling bonds). Withdrawal allowed after notice period.
     pub fn request_withdrawal(e: Env) -> IdentityBond {
         let key = DataKey::Bond;
-        let mut bond = e.storage()
+        let mut bond = e
+            .storage()
             .instance()
             .get::<_, IdentityBond>(&key)
             .unwrap_or_else(|| panic!("no bond"));
@@ -459,7 +464,8 @@ impl CredenceBond {
     /// If bond is rolling and period has ended, renew (new period start = now). Emits renewal event.
     pub fn renew_if_rolling(e: Env) -> IdentityBond {
         let key = DataKey::Bond;
-        let mut bond = e.storage()
+        let mut bond = e
+            .storage()
             .instance()
             .get::<_, IdentityBond>(&key)
             .unwrap_or_else(|| panic!("no bond"));
@@ -547,12 +553,7 @@ impl CredenceBond {
             .get(&DataKey::Token)
             .unwrap_or_else(|| panic!("token not set"));
         let contract = e.current_contract_address();
-        TokenClient::new(&e, &token).transfer_from(
-            &contract,
-            &bond.identity,
-            &contract,
-            &amount,
-        );
+        TokenClient::new(&e, &token).transfer_from(&contract, &bond.identity, &contract, &amount);
 
         let old_tier = tiered_bond::get_tier_for_amount(bond.bonded_amount);
         bond.bonded_amount = new_bonded;

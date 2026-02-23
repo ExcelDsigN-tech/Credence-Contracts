@@ -41,7 +41,9 @@ pub fn setup_with_token_mint(
 
     client.initialize(&admin);
 
-    let stellar_asset = e.register_stellar_asset_contract_v2(admin.clone()).address();
+    let stellar_asset = e
+        .register_stellar_asset_contract_v2(admin.clone())
+        .address();
     let stellar_client = StellarAssetClient::new(e, &stellar_asset);
     stellar_client.set_authorized(&identity, &true);
     stellar_client.mint(&identity, &mint_amount);
