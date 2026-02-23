@@ -4,16 +4,13 @@
 
 #![cfg(test)]
 
+use crate::test_helpers;
 use crate::{CredenceBond, CredenceBondClient};
-use soroban_sdk::testutils::Address as _;
+use soroban_sdk::testutils::{Address as _, Ledger};
 use soroban_sdk::{Address, Env};
 
 fn setup(e: &Env) -> (CredenceBondClient<'_>, Address, Address) {
-    let contract_id = e.register_contract(None, CredenceBond);
-    let client = CredenceBondClient::new(e, &contract_id);
-    let admin = Address::generate(e);
-    client.initialize(&admin);
-    let identity = Address::generate(e);
+    let (client, admin, identity, _token_id, _bond_id) = test_helpers::setup_with_token(e);
     (client, admin, identity)
 }
 
@@ -82,9 +79,11 @@ fn test_slash_events_emitted() {
 #[test]
 fn test_withdraw_after_slash_respects_available() {
     let e = Env::default();
+    e.ledger().with_mut(|li| li.timestamp = 0);
     let (client, admin, identity) = setup(&e);
     client.create_bond(&identity, &1000_i128, &86400_u64, &false, &0_u64);
     client.slash(&admin, &400);
+    e.ledger().with_mut(|li| li.timestamp = 86401);
     let bond = client.withdraw(&600);
     assert_eq!(bond.bonded_amount, 400);
     assert_eq!(bond.slashed_amount, 400);
@@ -94,9 +93,11 @@ fn test_withdraw_after_slash_respects_available() {
 #[should_panic(expected = "insufficient balance for withdrawal")]
 fn test_withdraw_more_than_available_after_slash_fails() {
     let e = Env::default();
+    e.ledger().with_mut(|li| li.timestamp = 0);
     let (client, admin, identity) = setup(&e);
     client.create_bond(&identity, &1000_i128, &86400_u64, &false, &0_u64);
     client.slash(&admin, &400);
+    e.ledger().with_mut(|li| li.timestamp = 86401);
     client.withdraw(&601);
 }
 

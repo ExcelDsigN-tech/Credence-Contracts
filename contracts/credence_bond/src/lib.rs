@@ -4,6 +4,7 @@ mod early_exit_penalty;
 mod rolling_bond;
 mod tiered_bond;
 
+use soroban_sdk::token::TokenClient;
 use soroban_sdk::{contract, contractimpl, contracttype, Address, Env, Symbol};
 
 /// Identity tier based on bonded amount (Bronze < Silver < Gold < Platinum).
@@ -53,8 +54,18 @@ impl CredenceBond {
         early_exit_penalty::set_config(&e, treasury, penalty_bps);
     }
 
-    /// Create or top-up a bond for an identity. In a full implementation this would
-    /// transfer USDC from the caller and store the bond.
+    /// Set the token contract address (admin only). Required before create_bond, top_up, withdraw_bond.
+    pub fn set_token(e: Env, admin: Address, token: Address) {
+        let stored_admin: Address = e.storage().instance().get(&Symbol::new(&e, "admin"))
+            .unwrap_or_else(|| panic!("not initialized"));
+        if admin != stored_admin {
+            panic!("not admin");
+        }
+        e.storage().instance().set(&Symbol::new(&e, "token"), &token);
+    }
+
+    /// Create or top-up a bond for an identity. Transfers USDC from identity to contract.
+    /// The identity must have approved this contract to spend at least `amount` before calling.
     /// For rolling bonds, set is_rolling true and notice_period_duration > 0.
     pub fn create_bond(
         e: Env,
@@ -64,6 +75,14 @@ impl CredenceBond {
         is_rolling: bool,
         notice_period_duration: u64,
     ) -> IdentityBond {
+        if amount < 0 {
+            panic!("amount must be non-negative");
+        }
+        let token: Address = e.storage().instance().get(&Symbol::new(&e, "token"))
+            .unwrap_or_else(|| panic!("token not set"));
+        let contract = e.current_contract_address();
+        TokenClient::new(&e, &token).transfer_from(&contract, &identity, &contract, &amount);
+
         let bond_start = e.ledger().timestamp();
 
         let _end_timestamp = bond_start.checked_add(duration)
@@ -97,26 +116,64 @@ impl CredenceBond {
             })
     }
 
-    /// Withdraw from bond (no penalty). Use when lock-up has ended or after notice period for rolling bonds.
-    /// Checks that the bond has sufficient balance after accounting for slashed amount.
+    /// Withdraw from bond (no penalty). Alias for withdraw_bond. Use when lock-up has ended
+    /// or after notice period for rolling bonds.
     pub fn withdraw(e: Env, amount: i128) -> IdentityBond {
+        Self::withdraw_bond(e, amount)
+    }
+
+    /// Withdraw USDC from bond after lock-up has elapsed and (for rolling bonds) cooldown window.
+    /// Verifies: (1) lock-up period elapsed, (2) for rolling bonds: withdrawal requested and
+    /// notice period elapsed, (3) amount <= available. Transfers USDC to identity owner.
+    /// Supports partial withdrawals.
+    pub fn withdraw_bond(e: Env, amount: i128) -> IdentityBond {
         let key = Symbol::new(&e, "bond");
         let mut bond = e.storage()
             .instance()
             .get::<_, IdentityBond>(&key)
             .unwrap_or_else(|| panic!("no bond"));
 
+        let now = e.ledger().timestamp();
+        let end = bond.bond_start.saturating_add(bond.bond_duration);
+
+        if bond.is_rolling {
+            // Rolling bonds: withdrawal must be requested and notice period (cooldown) elapsed
+            if bond.withdrawal_requested_at == 0 {
+                panic!("cooldown window not elapsed; request_withdrawal first");
+            }
+            if !rolling_bond::can_withdraw_after_notice(
+                now,
+                bond.withdrawal_requested_at,
+                bond.notice_period_duration,
+            ) {
+                panic!("cooldown window not elapsed; request_withdrawal first");
+            }
+        } else {
+            // Non-rolling bonds: lock-up must have elapsed
+            if now < end {
+                panic!("lock-up period not elapsed; use withdraw_early");
+            }
+        }
+
+        // 3. Available balance check
         let available = bond.bonded_amount.checked_sub(bond.slashed_amount)
             .expect("slashed amount exceeds bonded amount");
         if amount > available {
             panic!("insufficient balance for withdrawal");
         }
 
+        // Transfer USDC to identity owner
+        let token: Address = e.storage().instance().get(&Symbol::new(&e, "token"))
+            .unwrap_or_else(|| panic!("token not set"));
+        let contract = e.current_contract_address();
+        TokenClient::new(&e, &token).transfer(&contract, &bond.identity, &amount);
+
+        // Update bond state
         let old_tier = tiered_bond::get_tier_for_amount(bond.bonded_amount);
         bond.bonded_amount = bond.bonded_amount.checked_sub(amount)
             .expect("withdrawal caused underflow");
         if bond.slashed_amount > bond.bonded_amount {
-            panic!("slashed amount exceeds bonded amount");
+            bond.slashed_amount = bond.bonded_amount;
         }
         let new_tier = tiered_bond::get_tier_for_amount(bond.bonded_amount);
         tiered_bond::emit_tier_change_if_needed(&e, &bond.identity, old_tier, new_tier);
@@ -126,7 +183,7 @@ impl CredenceBond {
     }
 
     /// Withdraw before lock-up end; applies early exit penalty and transfers penalty to treasury.
-    /// Net amount to user = amount - penalty. Use when lock-up has not yet ended.
+    /// Net amount to user = amount - penalty. Transfers (amount - penalty) to identity, penalty to treasury.
     pub fn withdraw_early(e: Env, amount: i128) -> IdentityBond {
         let key = Symbol::new(&e, "bond");
         let mut bond = e.storage()
@@ -155,7 +212,16 @@ impl CredenceBond {
             penalty_bps,
         );
         early_exit_penalty::emit_penalty_event(&e, &bond.identity, amount, penalty, &treasury);
-        // In a full implementation: transfer (amount - penalty) to user, penalty to treasury.
+
+        let token: Address = e.storage().instance().get(&Symbol::new(&e, "token"))
+            .unwrap_or_else(|| panic!("token not set"));
+        let contract = e.current_contract_address();
+        let token_client = TokenClient::new(&e, &token);
+        let net_amount = amount.checked_sub(penalty).expect("penalty exceeds amount");
+        token_client.transfer(&contract, &bond.identity, &net_amount);
+        if penalty > 0 {
+            token_client.transfer(&contract, &treasury, &penalty);
+        }
 
         let old_tier = tiered_bond::get_tier_for_amount(bond.bonded_amount);
         bond.bonded_amount = bond.bonded_amount.checked_sub(amount)
@@ -251,7 +317,9 @@ impl CredenceBond {
         bond
     }
 
-    /// Top up the bond with additional amount (checks for overflow). May emit tier_changed.
+    /// Top up the bond with additional amount. Transfers USDC from bond identity to contract.
+    /// Identity must have approved this contract to spend at least `amount`.
+    /// Overflow check is performed before token transfer (CEI pattern).
     pub fn top_up(e: Env, amount: i128) -> IdentityBond {
         let key = Symbol::new(&e, "bond");
         let mut bond = e.storage()
@@ -259,9 +327,22 @@ impl CredenceBond {
             .get::<_, IdentityBond>(&key)
             .unwrap_or_else(|| panic!("no bond"));
 
-        let old_tier = tiered_bond::get_tier_for_amount(bond.bonded_amount);
-        bond.bonded_amount = bond.bonded_amount.checked_add(amount)
+        // Overflow check before token transfer
+        let new_bonded = bond.bonded_amount.checked_add(amount)
             .expect("top-up caused overflow");
+
+        let token: Address = e.storage().instance().get(&Symbol::new(&e, "token"))
+            .unwrap_or_else(|| panic!("token not set"));
+        let contract = e.current_contract_address();
+        TokenClient::new(&e, &token).transfer_from(
+            &contract,
+            &bond.identity,
+            &contract,
+            &amount,
+        );
+
+        let old_tier = tiered_bond::get_tier_for_amount(bond.bonded_amount);
+        bond.bonded_amount = new_bonded;
         let new_tier = tiered_bond::get_tier_for_amount(bond.bonded_amount);
         tiered_bond::emit_tier_change_if_needed(&e, &bond.identity, old_tier, new_tier);
 
@@ -291,6 +372,9 @@ impl CredenceBond {
 }
 
 #[cfg(test)]
+mod test_helpers;
+
+#[cfg(test)]
 mod test;
 
 #[cfg(test)]
@@ -307,3 +391,6 @@ mod test_tiered_bond;
 
 #[cfg(test)]
 mod test_slashing;
+
+#[cfg(test)]
+mod test_withdraw_bond;
