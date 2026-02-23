@@ -9,7 +9,18 @@ mod weighted_attestation;
 
 pub mod types;
 
-use soroban_sdk::{contract, contractimpl, contracttype, Address, Env, String, Symbol, Vec};
+use soroban_sdk::{
+    contract,
+    contractimpl,
+    contracttype,
+    Address,
+    Env,
+    String,
+    Symbol,
+    Vec,
+    Val,
+    IntoVal,
+};
 
 /// Identity tier based on bonded amount (Bronze < Silver < Gold < Platinum).
 #[contracttype]
@@ -597,13 +608,10 @@ impl CredenceBond {
             bond_start: bond.bond_start,
             bond_duration: bond.bond_duration,
             slashed_amount: bond.slashed_amount,
-            is_rolling: bond.is_rolling,
-            notice_period: bond.notice_period,
-            withdrawal_requested_at: bond.withdrawal_requested_at,
             active: false,
             is_rolling: bond.is_rolling,
             withdrawal_requested_at: bond.withdrawal_requested_at,
-            notice_period: bond.notice_period,
+            notice_period_duration: bond.notice_period_duration,
         };
         e.storage().instance().set(&bond_key, &updated);
 
@@ -661,13 +669,10 @@ impl CredenceBond {
             bond_start: bond.bond_start,
             bond_duration: bond.bond_duration,
             slashed_amount: new_slashed,
-            is_rolling: bond.is_rolling,
-            notice_period: bond.notice_period,
-            withdrawal_requested_at: bond.withdrawal_requested_at,
             active: bond.active,
             is_rolling: bond.is_rolling,
             withdrawal_requested_at: bond.withdrawal_requested_at,
-            notice_period: bond.notice_period,
+            notice_period_duration: bond.notice_period_duration,
         };
         e.storage().instance().set(&bond_key, &updated);
 
