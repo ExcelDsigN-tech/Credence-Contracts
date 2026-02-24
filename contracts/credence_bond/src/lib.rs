@@ -610,34 +610,11 @@ impl CredenceBond {
         fees::set_config(&e, treasury, fee_bps);
     }
 
-
-        // State update BEFORE external interaction (checks-effects-interactions)
-        let updated = IdentityBond {
-            identity: identity.clone(),
-            bonded_amount: 0,
-            bond_start: bond.bond_start,
-            bond_duration: bond.bond_duration,
-            slashed_amount: bond.slashed_amount,
-            active: false,
-            is_rolling: bond.is_rolling,
-            withdrawal_requested_at: bond.withdrawal_requested_at,
-            notice_period_duration: bond.notice_period_duration,
-        };
-        e.storage().instance().set(&bond_key, &updated);
-
-        // External call: invoke callback if a callback contract is registered.
-        // In production this would be a token transfer; here we use a hook for testing.
-        let cb_key = Symbol::new(&e, "callback");
-        if let Some(cb_addr) = e.storage().instance().get::<_, Address>(&cb_key) {
-            let fn_name = Symbol::new(&e, "on_withdraw");
-            let args: Vec<Val> = Vec::from_array(&e, [withdraw_amount.into_val(&e)]);
-            e.invoke_contract::<Val>(&cb_addr, &fn_name, args);
-        }
+    // State update BEFORE external interaction (checks-effects-interactions)
 
     pub fn get_fee_config(e: Env) -> (Option<Address>, u32) {
         fees::get_config(&e)
     }
-
 
     pub fn collect_fees(e: Env, admin: Address) -> i128 {
         Self::require_admin(&e, &admin);
@@ -709,33 +686,11 @@ impl CredenceBond {
         governance_approval::get_vote(&e, proposal_id, &voter)
     }
 
-
-        // State update BEFORE external interaction
-        let updated = IdentityBond {
-            identity: bond.identity.clone(),
-            bonded_amount: bond.bonded_amount,
-            bond_start: bond.bond_start,
-            bond_duration: bond.bond_duration,
-            slashed_amount: new_slashed,
-            active: bond.active,
-            is_rolling: bond.is_rolling,
-            withdrawal_requested_at: bond.withdrawal_requested_at,
-            notice_period_duration: bond.notice_period_duration,
-        };
-        e.storage().instance().set(&bond_key, &updated);
-
-        // External call: invoke callback if registered
-        let cb_key = Symbol::new(&e, "callback");
-        if let Some(cb_addr) = e.storage().instance().get::<_, Address>(&cb_key) {
-            let fn_name = Symbol::new(&e, "on_slash");
-            let args: Vec<Val> = Vec::from_array(&e, [slash_amount.into_val(&e)]);
-            e.invoke_contract::<Val>(&cb_addr, &fn_name, args);
-        }
+    // State update BEFORE external interaction
 
     pub fn get_governors(e: Env) -> Vec<Address> {
         governance_approval::get_governors(&e)
     }
-
 
     pub fn get_governance_delegate(e: Env, governor: Address) -> Option<Address> {
         governance_approval::get_delegate(&e, &governor)
