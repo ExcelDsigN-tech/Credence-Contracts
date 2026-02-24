@@ -6,9 +6,8 @@ pub mod governance_approval;
 mod nonce;
 pub mod rolling_bond;
 mod slashing;
-mod tiered_bond;
-mod validation;
 pub mod tiered_bond;
+mod validation;
 mod weighted_attestation;
 
 pub mod types;

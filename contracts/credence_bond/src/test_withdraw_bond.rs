@@ -24,7 +24,7 @@ fn test_withdraw_bond_successful() {
     let (client, _admin) = setup(&e);
     let identity = Address::generate(&e);
 
-    client.create_bond(&identity, &1000_i128, &100_u64, &false, &0_u64);
+    client.create_bond(&identity, &1000_i128, &86400_u64, &false, &0_u64);
     let bond = client.withdraw(&1000_i128);
 
     assert_eq!(bond.bonded_amount, 0);
@@ -37,7 +37,7 @@ fn test_withdraw_bond_partial_withdrawal() {
     let (client, _admin) = setup(&e);
     let identity = Address::generate(&e);
 
-    client.create_bond(&identity, &1000_i128, &100_u64, &false, &0_u64);
+    client.create_bond(&identity, &1000_i128, &86400_u64, &false, &0_u64);
     let bond = client.withdraw(&400_i128);
 
     assert_eq!(bond.bonded_amount, 600);
@@ -51,7 +51,7 @@ fn test_withdraw_bond_insufficient_balance() {
     let (client, _admin) = setup(&e);
     let identity = Address::generate(&e);
 
-    client.create_bond(&identity, &500_i128, &100_u64, &false, &0_u64);
+    client.create_bond(&identity, &500_i128, &86400_u64, &false, &0_u64);
     client.withdraw(&501_i128);
 }
 
@@ -67,10 +67,10 @@ fn test_withdraw_bond_early_withdrawal_rejection() {
 
     // Configure penalty so early withdraw path is active.
     client.set_early_exit_config(&admin, &treasury, &500);
-    client.create_bond(&identity, &1000_i128, &100_u64, &false, &0_u64);
+    client.create_bond(&identity, &1000_i128, &86400_u64, &false, &0_u64);
 
     // Advance past lock-up and ensure early path is rejected.
-    e.ledger().with_mut(|li| li.timestamp = 1_101);
+    e.ledger().with_mut(|li| li.timestamp = 87_401);
     client.withdraw_early(&100_i128);
 }
 
@@ -111,7 +111,7 @@ fn test_withdraw_bond_exact_available_after_slash() {
     let (client, admin) = setup(&e);
     let identity = Address::generate(&e);
 
-    client.create_bond(&identity, &1_000_i128, &100_u64, &false, &0_u64);
+    client.create_bond(&identity, &1_000_i128, &86400_u64, &false, &0_u64);
     client.slash(&admin, &250_i128);
 
     let bond = client.withdraw(&750_i128);

@@ -27,7 +27,7 @@ fn test_early_exit_penalty_calculation_zero_penalty_rate() {
     let treasury = Address::generate(&e);
     let (client, _admin) = setup(&e, &treasury, 0);
     let identity = Address::generate(&e);
-    client.create_bond(&identity, &1000_i128, &100_u64, &false, &0_u64);
+    client.create_bond(&identity, &1000_i128, &86400_u64, &false, &0_u64);
 
     let bond = client.withdraw_early(&500);
     assert_eq!(bond.bonded_amount, 500);
@@ -40,8 +40,8 @@ fn test_early_exit_penalty_calculation_max_penalty() {
     let treasury = Address::generate(&e);
     let (client, _admin) = setup(&e, &treasury, 10_000); // 100%
     let identity = Address::generate(&e);
-    client.create_bond(&identity, &1000_i128, &100_u64, &false, &0_u64);
-    // Withdraw at start: remaining = 100, total = 100 -> full penalty
+    client.create_bond(&identity, &1000_i128, &86400_u64, &false, &0_u64);
+    // Withdraw at start: remaining = 86400, total = 86400 -> full penalty
     let bond = client.withdraw_early(&500);
     assert_eq!(bond.bonded_amount, 500);
     // Penalty = 500 * 100% = 500; user effectively gets 0 (penalty to treasury)
@@ -54,12 +54,12 @@ fn test_early_exit_penalty_half_remaining() {
     let treasury = Address::generate(&e);
     let (client, _admin) = setup(&e, &treasury, 1000); // 10%
     let identity = Address::generate(&e);
-    client.create_bond(&identity, &1000_i128, &100_u64, &false, &0_u64);
-    // At t=1050: remaining=50, total=100 -> 50% of penalty rate -> 5% of amount
-    e.ledger().with_mut(|li| li.timestamp = 1050);
+    client.create_bond(&identity, &1000_i128, &86400_u64, &false, &0_u64);
+    // At t=44200: remaining=43200, total=86400 -> 50% of penalty rate -> 5% of amount
+    e.ledger().with_mut(|li| li.timestamp = 44200);
     let bond = client.withdraw_early(&100);
     assert_eq!(bond.bonded_amount, 900);
-    // Penalty = 100 * 10% * (50/100) = 5
+    // Penalty = 100 * 10% * (43200/86400) = 5
 }
 
 #[test]
@@ -69,7 +69,7 @@ fn test_early_exit_emits_penalty_event() {
     let treasury = Address::generate(&e);
     let (client, _admin) = setup(&e, &treasury, 500); // 5%
     let identity = Address::generate(&e);
-    client.create_bond(&identity, &1000_i128, &100_u64, &false, &0_u64);
+    client.create_bond(&identity, &1000_i128, &86400_u64, &false, &0_u64);
     client.withdraw_early(&200);
     // Event (early_exit_penalty, (identity, 200, penalty, treasury)) should be emitted
     // We can't easily assert events in Soroban test without event parsing; bond state is updated
@@ -85,8 +85,8 @@ fn test_early_exit_rejected_after_lock_up() {
     let treasury = Address::generate(&e);
     let (client, _admin) = setup(&e, &treasury, 500);
     let identity = Address::generate(&e);
-    client.create_bond(&identity, &1000_i128, &100_u64, &false, &0_u64);
-    e.ledger().with_mut(|li| li.timestamp = 1101);
+    client.create_bond(&identity, &1000_i128, &86400_u64, &false, &0_u64);
+    e.ledger().with_mut(|li| li.timestamp = 87401);
     client.withdraw_early(&100);
 }
 
@@ -100,7 +100,7 @@ fn test_early_exit_fails_without_config() {
     let admin = Address::generate(&e);
     client.initialize(&admin);
     let identity = Address::generate(&e);
-    client.create_bond(&identity, &1000_i128, &100_u64, &false, &0_u64);
+    client.create_bond(&identity, &1000_i128, &86400_u64, &false, &0_u64);
     client.withdraw_early(&100);
 }
 
