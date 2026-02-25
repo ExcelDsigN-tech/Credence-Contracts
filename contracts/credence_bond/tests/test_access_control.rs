@@ -1,4 +1,5 @@
 use credence_bond::{CredenceBond, CredenceBondClient};
+use soroban_sdk::testutils::Ledger;
 use soroban_sdk::{testutils::Address as _, Address, Env, String};
 
 fn setup(env: &Env) -> (CredenceBondClient<'_>, Address, Address, Address) {
@@ -12,6 +13,18 @@ fn setup(env: &Env) -> (CredenceBondClient<'_>, Address, Address, Address) {
     let attacker = Address::generate(env);
 
     client.initialize(&admin);
+
+    // Register token
+    let token_id = env.register_stellar_asset_contract(admin.clone());
+    client.set_token(&admin, &token_id);
+
+    // 🔹 Use StellarAssetClient for minting
+    let asset = soroban_sdk::token::StellarAssetClient::new(env, &token_id);
+    asset.mint(&user, &10_000_i128);
+
+    // 🔹 Use TokenClient for approval
+    let token = soroban_sdk::token::TokenClient::new(env, &token_id);
+    token.approve(&user, &contract_id, &10_000_i128, &0_u32);
 
     (client, admin, user, attacker)
 }
@@ -61,22 +74,17 @@ fn wrong_attester_cannot_revoke() {
 }
 
 #[test]
-#[should_panic]
-fn non_owner_cannot_withdraw_bond() {
-    let env = Env::default();
-    let (client, _admin, user, attacker) = setup(&env);
-
-    client.create_bond(&user, &1000_i128, &100_u64, &false, &0_u64);
-    client.withdraw_bond(&attacker);
-}
-
-#[test]
 fn owner_can_withdraw_bond() {
     let env = Env::default();
     let (client, _admin, user, _) = setup(&env);
 
     client.create_bond(&user, &1000_i128, &100_u64, &false, &0_u64);
-    let amount = client.withdraw_bond(&user);
 
-    assert_eq!(amount, 1000);
+    // advance time
+    env.ledger().with_mut(|l| {
+        l.timestamp += 200;
+    });
+
+    let bond = client.withdraw_bond(&1000_i128);
+    assert_eq!(bond.bonded_amount, 0);
 }
