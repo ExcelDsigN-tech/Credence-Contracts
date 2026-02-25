@@ -5,6 +5,7 @@
 
 #![cfg(test)]
 
+use crate::test_helpers;
 use crate::validation::{self, MAX_BOND_DURATION, MIN_BOND_DURATION};
 use crate::{CredenceBond, CredenceBondClient};
 use soroban_sdk::testutils::Address as _;
@@ -96,9 +97,7 @@ fn test_validate_duration_u64_max() {
 #[test]
 fn test_create_bond_min_duration() {
     let e = Env::default();
-    e.mock_all_auths();
-    let client = setup(&e);
-    let identity = Address::generate(&e);
+    let (client, _admin, identity, ..) = test_helpers::setup_with_token(&e);
     let bond = client.create_bond(&identity, &1000_i128, &MIN_BOND_DURATION, &false, &0_u64);
     assert!(bond.active);
     assert_eq!(bond.bond_duration, MIN_BOND_DURATION);
@@ -108,9 +107,7 @@ fn test_create_bond_min_duration() {
 #[test]
 fn test_create_bond_max_duration() {
     let e = Env::default();
-    e.mock_all_auths();
-    let client = setup(&e);
-    let identity = Address::generate(&e);
+    let (client, _admin, identity, ..) = test_helpers::setup_with_token(&e);
     let bond = client.create_bond(&identity, &1000_i128, &MAX_BOND_DURATION, &false, &0_u64);
     assert!(bond.active);
     assert_eq!(bond.bond_duration, MAX_BOND_DURATION);
@@ -120,9 +117,7 @@ fn test_create_bond_max_duration() {
 #[test]
 fn test_create_bond_typical_duration() {
     let e = Env::default();
-    e.mock_all_auths();
-    let client = setup(&e);
-    let identity = Address::generate(&e);
+    let (client, _admin, identity, ..) = test_helpers::setup_with_token(&e);
     let thirty_days = 30 * 86_400_u64;
     let bond = client.create_bond(&identity, &1000_i128, &thirty_days, &false, &0_u64);
     assert!(bond.active);
@@ -178,9 +173,7 @@ fn test_create_bond_above_max_duration_rejected() {
 #[test]
 fn test_create_rolling_bond_valid_duration() {
     let e = Env::default();
-    e.mock_all_auths();
-    let client = setup(&e);
-    let identity = Address::generate(&e);
+    let (client, _admin, identity, ..) = test_helpers::setup_with_token(&e);
     let bond = client.create_bond(&identity, &1000_i128, &MIN_BOND_DURATION, &true, &3600_u64);
     assert!(bond.active);
     assert!(bond.is_rolling);
