@@ -6,6 +6,8 @@ mod fees;
 pub mod governance_approval;
 mod math;
 mod nonce;
+mod parameters;
+
 mod rolling_bond;
 mod slash_history;
 mod slashing;
@@ -721,13 +723,6 @@ impl CredenceBond {
             .set(&Self::callback_key(&e), &callback);
     }
 
-    pub fn is_locked(e: Env) -> bool {
-        e.storage()
-            .instance()
-            .get(&Self::lock_key(&e))
-            .unwrap_or(false)
-    }
-
     pub fn get_slash_proposal(
         e: Env,
         proposal_id: u64,
@@ -805,6 +800,94 @@ impl CredenceBond {
         e.storage().instance().set(&key, &bond);
         bond
     }
+
+    /// Check if the reentrancy lock is currently held.
+    pub fn is_locked(e: Env) -> bool {
+        Self::check_lock(&e)
+    }
+
+    // --- Protocol Parameters (Governance-Controlled) ---
+
+    /// Get protocol fee rate in basis points.
+    pub fn get_protocol_fee_bps(e: Env) -> u32 {
+        parameters::get_protocol_fee_bps(&e)
+    }
+
+    /// Set protocol fee rate. Governance-only.
+    pub fn set_protocol_fee_bps(e: Env, admin: Address, value: u32) {
+        parameters::set_protocol_fee_bps(&e, &admin, value)
+    }
+
+    /// Get attestation fee rate in basis points.
+    pub fn get_attestation_fee_bps(e: Env) -> u32 {
+        parameters::get_attestation_fee_bps(&e)
+    }
+
+    /// Set attestation fee rate. Governance-only.
+    pub fn set_attestation_fee_bps(e: Env, admin: Address, value: u32) {
+        parameters::set_attestation_fee_bps(&e, &admin, value)
+    }
+
+    /// Get withdrawal cooldown period in seconds.
+    pub fn get_withdrawal_cooldown_secs(e: Env) -> u64 {
+        parameters::get_withdrawal_cooldown_secs(&e)
+    }
+
+    /// Set withdrawal cooldown period. Governance-only.
+    pub fn set_withdrawal_cooldown_secs(e: Env, admin: Address, value: u64) {
+        parameters::set_withdrawal_cooldown_secs(&e, &admin, value)
+    }
+
+    /// Get slash cooldown period in seconds.
+    pub fn get_slash_cooldown_secs(e: Env) -> u64 {
+        parameters::get_slash_cooldown_secs(&e)
+    }
+
+    /// Set slash cooldown period. Governance-only.
+    pub fn set_slash_cooldown_secs(e: Env, admin: Address, value: u64) {
+        parameters::set_slash_cooldown_secs(&e, &admin, value)
+    }
+
+    /// Get bronze tier threshold.
+    pub fn get_bronze_threshold(e: Env) -> i128 {
+        parameters::get_bronze_threshold(&e)
+    }
+
+    /// Set bronze tier threshold. Governance-only.
+    pub fn set_bronze_threshold(e: Env, admin: Address, value: i128) {
+        parameters::set_bronze_threshold(&e, &admin, value)
+    }
+
+    /// Get silver tier threshold.
+    pub fn get_silver_threshold(e: Env) -> i128 {
+        parameters::get_silver_threshold(&e)
+    }
+
+    /// Set silver tier threshold. Governance-only.
+    pub fn set_silver_threshold(e: Env, admin: Address, value: i128) {
+        parameters::set_silver_threshold(&e, &admin, value)
+    }
+
+    /// Get gold tier threshold.
+    pub fn get_gold_threshold(e: Env) -> i128 {
+        parameters::get_gold_threshold(&e)
+    }
+
+    /// Set gold tier threshold. Governance-only.
+    pub fn set_gold_threshold(e: Env, admin: Address, value: i128) {
+        parameters::set_gold_threshold(&e, &admin, value)
+    }
+
+    /// Get platinum tier threshold.
+    pub fn get_platinum_threshold(e: Env) -> i128 {
+        parameters::get_platinum_threshold(&e)
+    }
+
+    /// Set platinum tier threshold. Governance-only.
+    pub fn set_platinum_threshold(e: Env, admin: Address, value: i128) {
+        parameters::set_platinum_threshold(&e, &admin, value)
+    }
+
     /// Withdraw the full bonded amount back to the identity (callback-based, for reentrancy tests).
     /// Uses a reentrancy guard to prevent re-entrance during external calls.
     pub fn withdraw_bond_full(e: Env, identity: Address) -> i128 {
@@ -1132,6 +1215,9 @@ mod test_replay_prevention;
 
 #[cfg(test)]
 mod test_governance_approval;
+
+#[cfg(test)]
+mod test_parameters;
 
 #[cfg(test)]
 mod test_fees;
