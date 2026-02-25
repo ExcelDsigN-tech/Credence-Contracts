@@ -2,6 +2,8 @@
 //! Covers: penalty calculation from remaining lock time, configurable rates,
 //! penalty event emission, and security (zero/max penalty edge cases).
 
+#![cfg(test)]
+
 use crate::early_exit_penalty;
 use crate::test_helpers;
 use crate::{CredenceBond, CredenceBondClient};
